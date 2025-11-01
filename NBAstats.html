@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Stats Explorer</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(to bottom right, #f8fafc, #dbeafe);
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        #root { max-width: 1400px; margin: 0 auto; }
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+        }
+        .header-section {
+            margin-bottom: 1.5rem;
+        }
+        .filters-row {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: end;
+            margin-bottom: 1rem;
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #4b5563;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+        select {
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            background: white;
+            cursor: pointer;
+            min-width: 140px;
+        }
+        select:focus { outline: none; border-color: #3b82f6; }
+        optgroup {
+            font-weight: bold;
+            font-style: normal;
+            color: #1f2937;
+            background: #f3f4f6;
+        }
+        optgroup option {
+            font-weight: normal;
+            color: #374151;
+            background: white;
+        }
+        .comparison-filter {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .comparison-filter select {
+            min-width: 60px;
+        }
+        .comparison-filter input {
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            width: 80px;
+        }
+        input[type="text"] {
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            min-width: 200px;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .checkbox-group label {
+            text-transform: none;
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
+        .player-search-container {
+            position: relative;
+            min-width: 200px;
+        }
+        .player-search-input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+        .player-search-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        .player-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 300px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .player-option {
+            padding: 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        .player-option:hover {
+            background: #f3f4f6;
+        }
+        .player-option.selected {
+            background: #dbeafe;
+            font-weight: 600;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #dc2626; }
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+            overflow-x: auto;
+        }
+        svg { display: block; }
+        .tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 250px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .tooltip div {
+            margin: 0.25rem 0;
+        }
+        .tooltip-player {
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .source {
+            position: absolute;
+            font-size: 11px;
+            color: #6b7280;
+            bottom: 10px;
+            left: 60px;
+        }
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #6b7280;
+            font-size: 1.125rem;
+        }
+        .error {
+            text-align: center;
+            padding: 3rem;
+            color: #ef4444;
+        }
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            color: #6b7280;
+            border: none;
+            border-radius: 0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+        }
+        .tab:hover {
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+        .tab.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+            background: transparent;
+        }
+        .comparison-view {
+            width: 100%;
+        }
+        .comparison-header {
+            margin-bottom: 1.5rem;
+        }
+        .tables-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+        .table-section h2 {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .table-section.risers h2 {
+            color: #059669;
+        }
+        .table-section.fallers h2 {
+            color: #dc2626;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        thead {
+            background: #f9fafb;
+        }
+        th {
+            padding: 0.75rem;
+            text-align: left;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        td {
+            padding: 0.75rem;
+            font-size: 0.875rem;
+            color: #1f2937;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        tbody tr:hover {
+            background: #f9fafb;
+        }
+        .change-positive {
+            color: #059669;
+            font-weight: 600;
+        }
+        .change-negative {
+            color: #dc2626;
+            font-weight: 600;
+        }
+        .rookie-view {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .rookie-header {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        .rookie-header h2 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        .rookie-stats {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        .sortable-header {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 1.5rem !important;
+        }
+        .sortable-header:hover {
+            background: #e5e7eb;
+        }
+        .sort-indicator {
+            position: absolute;
+            right: 0.5rem;
+            color: #3b82f6;
+            font-weight: bold;
+        }
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            padding: 1rem;
+        }
+        .pagination button {
+            padding: 0.5rem 1rem;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            color: #374151;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pagination button:hover:not(:disabled) {
+            background: #f3f4f6;
+            border-color: #3b82f6;
+        }
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .pagination-info {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        function StatsChart() {
+            const [data, setData] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            
+            const [xStat, setXStat] = useState('Off Box Plus/Minus');
+            const [yStat, setYStat] = useState('Def Box Plus/Minus');
+            const [bubbleStat, setBubbleStat] = useState('');
+            const [seasonFilter, setSeasonFilter] = useState('All');
+            const [teamFilter, setTeamFilter] = useState('All');
+            const [posFilter, setPosFilter] = useState('All');
+            const [minGames, setMinGames] = useState(41);
+            const [comparisonOperator, setComparisonOperator] = useState('>=');
+            const [comparisonValue, setComparisonValue] = useState('20');
+            const [comparisonStat] = useState('MPG');
+            
+            const [hoveredPlayer, setHoveredPlayer] = useState(null);
+            const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+            
+            const [playerSearchQuery, setPlayerSearchQuery] = useState('');
+            const [selectedPlayer, setSelectedPlayer] = useState(null);
+            const [showPlayerDropdown, setShowPlayerDropdown] = useState(false);
+            const [showLabels, setShowLabels] = useState(false);
+            
+            const [currentView, setCurrentView] = useState('chart'); // 'chart', 'comparison', or 'rookie'
+            const [yyComparisonStat, setYYComparisonStat] = useState('PPG');
+            
+            // Rookie Report state
+            const [rookieSortColumn, setRookieSortColumn] = useState('PPG');
+            const [rookieSortDirection, setRookieSortDirection] = useState('desc');
+            const [rookiePage, setRookiePage] = useState(1);
+            const rookiesPerPage = 10;
+
+            const width = 1200;
+            const height = 700;
+            const margin = { top: 30, right: 30, bottom: 60, left: 60 };
+
+            useEffect(() => {
+                Papa.parse('https://docs.google.com/spreadsheets/d/11wAoaz2NZsnmzGxw_kcaqDd-PbFrkf7hD6LyjKzDnhE/export?format=csv&gid=0', {
+                    download: true,
+                    header: true,
+                    complete: (results) => {
+                        const processedData = results.data
+                            .filter(d => d.Player && d.Season)
+                            .map(d => ({
+                                Player: d.Player,
+                                Season: d.Season,
+                                Team: d.Team || 'N/A',
+                                Pos: d.Pos || 'N/A',
+                                Games: parseFloat(d.Games) || 0,
+                                'GS': parseFloat(d.GS) || 0,
+                                'MPG': parseFloat(d.MPG) || 0,
+                                'FG per Game': parseFloat(d['FG per Game']) || 0,
+                                'FGA per Game': parseFloat(d['FGA per Game']) || 0,
+                                'FG%': parseFloat(d['FG%']) || 0,
+                                '3P per Game': parseFloat(d['3P per Game']) || 0,
+                                '3PA per Game': parseFloat(d['3PA per Game']) || 0,
+                                '3P%': parseFloat(d['3P%']) || 0,
+                                '2P per Game': parseFloat(d['2P per Game']) || 0,
+                                '2PA per Game': parseFloat(d['2PA per Game']) || 0,
+                                '2P%': parseFloat(d['2P%']) || 0,
+                                'Effective FG%': parseFloat(d['Effective FG%']) || 0,
+                                'FT per Game': parseFloat(d['FT per Game']) || 0,
+                                'FTA per Game': parseFloat(d['FTA per Game']) || 0,
+                                'FT%': parseFloat(d['FT%']) || 0,
+                                'ORB per Game': parseFloat(d['ORB per Game']) || 0,
+                                'DRB per Game': parseFloat(d['DRB per Game']) || 0,
+                                'RPG': parseFloat(d.RPG) || 0,
+                                'APG': parseFloat(d.APG) || 0,
+                                'SPG': parseFloat(d.SPG) || 0,
+                                'BPG': parseFloat(d.BPG) || 0,
+                                'TOV per Game': parseFloat(d['TOV per Game']) || 0,
+                                'PF': parseFloat(d.PF) || 0,
+                                'PPG': parseFloat(d.PPG) || 0,
+                                'Player Efficiency Rating (PER)': parseFloat(d['Player Efficiency Rating (PER)']) || 0,
+                                'True Shooting %': parseFloat(d['True Shooting %']) || 0,
+                                '3PAr': parseFloat(d['3PAr']) || 0,
+                                'FTr': parseFloat(d.FTr) || 0,
+                                'Off Rebound %': parseFloat(d['Off Rebound %']) || 0,
+                                'Def Rebound %': parseFloat(d['Def Rebound %']) || 0,
+                                'Total Rebound %': parseFloat(d['Total Rebound %']) || 0,
+                                'Assist %': parseFloat(d['Assist %']) || 0,
+                                'Steal %': parseFloat(d['Steal %']) || 0,
+                                'Block %': parseFloat(d['Block %']) || 0,
+                                'Turnover %': parseFloat(d['Turnover %']) || 0,
+                                'Usage Rate': parseFloat(d['Usage Rate']) || 0,
+                                'Off Win Shares': parseFloat(d['Off Win Shares']) || 0,
+                                'Def Win Shares': parseFloat(d['Def Win Shares']) || 0,
+                                'Win Shares': parseFloat(d['Win Shares']) || 0,
+                                'Win Shares per 48': parseFloat(d['Win Shares per 48']) || 0,
+                                'Off Box Plus/Minus': parseFloat(d['Off Box Plus/Minus']) || 0,
+                                'Def Box Plus/Minus': parseFloat(d['Def Box Plus/Minus']) || 0,
+                                'Box Plus/Minus': parseFloat(d['Box Plus/Minus']) || 0,
+                                'Value Over Replacement Player (VORP)': parseFloat(d['Value Over Replacement Player (VORP)']) || 0,
+                                'Rookie?': d['Rookie?'] || 'No'
+                            }))
+                            .filter(d => d.Games > 0);
+                        setData(processedData);
+                        setLoading(false);
+                    },
+                    error: (err) => {
+                        setError(`Failed to load data: ${err.message}`);
+                        setLoading(false);
+                    }
+                });
+            }, []);
+
+            const seasons = useMemo(() => {
+                const uniqueSeasons = [...new Set(data.map(d => d.Season))].sort().reverse();
+                return ['All', ...uniqueSeasons];
+            }, [data]);
+
+            const teams = useMemo(() => {
+                const uniqueTeams = [...new Set(data.map(d => d.Team))].sort();
+                return ['All', ...uniqueTeams];
+            }, [data]);
+
+            const positions = useMemo(() => {
+                const uniquePos = [...new Set(data.map(d => d.Pos))].sort();
+                return ['All', ...uniquePos];
+            }, [data]);
+
+            // Categorized stats for dropdowns
+            const statsCategories = {
+                'Shooting': [
+                    'PPG',
+                    'FG per Game', 'FGA per Game', 'FG%',
+                    '3P per Game', '3PA per Game', '3P%',
+                    'FT per Game', 'FTA per Game', 'FT%',
+                    'Effective FG%', 'True Shooting %'
+                ],
+                'Playmaking': [
+                    'APG', 'TOV per Game'
+                ],
+                'Rebounding': [
+                    'RPG', 'ORB per Game', 'DRB per Game'
+                ],
+                'Defense': [
+                    'SPG', 'BPG'
+                ],
+                'Advanced': [
+                    'Player Efficiency Rating (PER)', 'Usage Rate',
+                    'Off Win Shares', 'Def Win Shares', 'Win Shares', 'Win Shares per 48',
+                    'Off Box Plus/Minus', 'Def Box Plus/Minus', 'Box Plus/Minus',
+                    'Value Over Replacement Player (VORP)'
+                ]
+            };
+            
+            const stats = Object.values(statsCategories).flat();
+            
+            // Calculate year-over-year changes for players with data in both seasons
+            const yyComparisons = useMemo(() => {
+                const players2024 = data.filter(d => d.Season === '2024-25');
+                const players2025 = data.filter(d => d.Season === '2025-26');
+                
+                const comparisons = [];
+                
+                players2025.forEach(p2025 => {
+                    const p2024 = players2024.find(p => p.Player === p2025.Player);
+                    if (p2024) {
+                        const comparison = {
+                            Player: p2025.Player,
+                            Team: p2025.Team,
+                            Pos: p2025.Pos
+                        };
+                        
+                        // Calculate changes for all stats
+                        stats.forEach(stat => {
+                            const val2024 = p2024[stat] || 0;
+                            const val2025 = p2025[stat] || 0;
+                            comparison[`${stat}_2024`] = val2024;
+                            comparison[`${stat}_2025`] = val2025;
+                            comparison[`${stat}_change`] = val2025 - val2024;
+                        });
+                        
+                        comparisons.push(comparison);
+                    }
+                });
+                
+                return comparisons;
+            }, [data, stats]);
+            
+            // Get stats that can't be negative (exclude Box Plus/Minus stats)
+            const nonNegativeStatsCategories = useMemo(() => {
+                const filtered = {};
+                Object.entries(statsCategories).forEach(([category, categoryStats]) => {
+                    const validStats = categoryStats.filter(stat => 
+                        !stat.includes('Box Plus/Minus') && 
+                        stat !== 'Off Box Plus/Minus' && 
+                        stat !== 'Def Box Plus/Minus'
+                    );
+                    if (validStats.length > 0) {
+                        filtered[category] = validStats;
+                    }
+                });
+                return filtered;
+            }, [statsCategories]);
+            
+            const nonNegativeStats = useMemo(() => {
+                return Object.values(nonNegativeStatsCategories).flat();
+            }, [nonNegativeStatsCategories]);
+            
+            // Calculate top risers and fallers for the selected stat
+            const { risers, fallers } = useMemo(() => {
+                const sortedByChange = [...yyComparisons]
+                    .filter(p => p[`${yyComparisonStat}_2024`] > 0) // Only include players who had the stat in 2024
+                    .sort((a, b) => b[`${yyComparisonStat}_change`] - a[`${yyComparisonStat}_change`]);
+                
+                return {
+                    risers: sortedByChange.slice(0, 10),
+                    fallers: sortedByChange.slice(-10).reverse()
+                };
+            }, [yyComparisons, yyComparisonStat]);
+            
+            // Rookie Report data
+            const rookieData = useMemo(() => {
+                return data.filter(d => d['Rookie?'] === 'Yes' && d.Season === '2025-26');
+            }, [data]);
+            
+            const sortedRookies = useMemo(() => {
+                const sorted = [...rookieData].sort((a, b) => {
+                    const aVal = a[rookieSortColumn];
+                    const bVal = b[rookieSortColumn];
+                    
+                    // Handle string columns (Player, Team)
+                    if (rookieSortColumn === 'Player' || rookieSortColumn === 'Team') {
+                        const aStr = (aVal || '').toString().toLowerCase();
+                        const bStr = (bVal || '').toString().toLowerCase();
+                        if (rookieSortDirection === 'asc') {
+                            return aStr.localeCompare(bStr);
+                        } else {
+                            return bStr.localeCompare(aStr);
+                        }
+                    }
+                    
+                    // Handle numeric columns
+                    const aNum = aVal || 0;
+                    const bNum = bVal || 0;
+                    if (rookieSortDirection === 'asc') {
+                        return aNum - bNum;
+                    } else {
+                        return bNum - aNum;
+                    }
+                });
+                return sorted;
+            }, [rookieData, rookieSortColumn, rookieSortDirection]);
+            
+            const paginatedRookies = useMemo(() => {
+                const startIdx = (rookiePage - 1) * rookiesPerPage;
+                const endIdx = startIdx + rookiesPerPage;
+                return sortedRookies.slice(startIdx, endIdx);
+            }, [sortedRookies, rookiePage, rookiesPerPage]);
+            
+            const totalRookiePages = Math.ceil(sortedRookies.length / rookiesPerPage);
+            
+            const handleRookieSort = (column) => {
+                if (rookieSortColumn === column) {
+                    // Toggle direction if same column
+                    setRookieSortDirection(rookieSortDirection === 'asc' ? 'desc' : 'asc');
+                } else {
+                    // New column, default to descending
+                    setRookieSortColumn(column);
+                    setRookieSortDirection('desc');
+                }
+                setRookiePage(1); // Reset to first page when sorting
+            };
+
+            const filteredPlayers = useMemo(() => {
+                return data.filter(player => {
+                    if (seasonFilter !== 'All' && player.Season !== seasonFilter) return false;
+                    if (teamFilter !== 'All' && player.Team !== teamFilter) return false;
+                    if (posFilter !== 'All' && player.Pos !== posFilter) return false;
+                    if (player.Games < minGames) return false;
+                    
+                    if (comparisonValue !== '') {
+                        const value = parseFloat(comparisonValue);
+                        const playerValue = player[comparisonStat] || 0;
+                        switch(comparisonOperator) {
+                            case '>': if (playerValue <= value) return false; break;
+                            case '<': if (playerValue >= value) return false; break;
+                            case '>=': if (playerValue < value) return false; break;
+                            case '<=': if (playerValue > value) return false; break;
+                            case '==': if (Math.abs(playerValue - value) > 0.01) return false; break;
+                        }
+                    }
+                    
+                    return true;
+                });
+            }, [data, seasonFilter, teamFilter, posFilter, minGames, comparisonOperator, comparisonValue, comparisonStat]);
+
+            const searchedPlayers = useMemo(() => {
+                if (!playerSearchQuery) return [];
+                return data
+                    .filter(p => p.Player.toLowerCase().includes(playerSearchQuery.toLowerCase()))
+                    .reduce((acc, player) => {
+                        if (!acc.find(p => p.Player === player.Player)) {
+                            acc.push(player);
+                        }
+                        return acc;
+                    }, [])
+                    .slice(0, 20);
+            }, [data, playerSearchQuery]);
+
+            const xExtent = useMemo(() => {
+                const values = filteredPlayers.map(d => d[xStat] || 0);
+                return [Math.min(...values), Math.max(...values)];
+            }, [filteredPlayers, xStat]);
+
+            const yExtent = useMemo(() => {
+                const values = filteredPlayers.map(d => d[yStat] || 0);
+                return [Math.min(...values), Math.max(...values)];
+            }, [filteredPlayers, yStat]);
+
+            const bubbleExtent = useMemo(() => {
+                if (!bubbleStat) return [0, 1]; // Return dummy extent when no stat selected
+                const values = data.map(d => d[bubbleStat] || 0);
+                return [Math.min(...values), Math.max(...values)];
+            }, [data, bubbleStat]);
+
+            const xScale = (value) => {
+                const [min, max] = xExtent;
+                const range = max - min || 1;
+                return margin.left + ((value - min) / range) * (width - margin.left - margin.right);
+            };
+
+            const yScale = (value) => {
+                const [min, max] = yExtent;
+                const range = max - min || 1;
+                return height - margin.bottom - ((value - min) / range) * (height - margin.top - margin.bottom);
+            };
+
+            const sizeScale = (value) => {
+                // If no bubble stat selected, return fixed size
+                if (!bubbleStat) return 6;
+                
+                const [min, max] = bubbleExtent;
+                const range = max - min || 1;
+                
+                // Calculate relative position (0 to 1)
+                const relativePosition = (value - min) / range;
+                
+                // Continuous adaptive scaling based on range
+                // Smaller ranges get higher exponents for more dramatic differences
+                // Formula: exponent = 1 + (inverse relationship with range)
+                // This creates a smooth curve where:
+                // - Very small ranges (1-5) get exponent ~3.5-4
+                // - Small ranges (5-15) get exponent ~2.5-3.5
+                // - Medium ranges (15-30) get exponent ~2-2.5
+                // - Large ranges (30+) get exponent ~1.5-2
+                
+                const exponent = 1 + Math.max(0.5, Math.min(3, 30 / range));
+                const scaledPosition = Math.pow(relativePosition, exponent);
+                
+                // Map to bubble size range (min: 3, max: 20)
+                return 3 + (scaledPosition * 17);
+            };
+
+            const xTicks = useMemo(() => {
+                const [min, max] = xExtent;
+                const range = max - min;
+                const step = range / 5;
+                return Array.from({ length: 6 }, (_, i) => min + step * i);
+            }, [xExtent]);
+
+            const yTicks = useMemo(() => {
+                const [min, max] = yExtent;
+                const range = max - min;
+                const step = range / 5;
+                return Array.from({ length: 6 }, (_, i) => min + step * i);
+            }, [yExtent]);
+
+            const formatStatValue = (stat, value, isAxis = false) => {
+                // Percentage stats
+                if (stat.includes('%')) {
+                    return isAxis ? value.toFixed(1) : value.toFixed(3);
+                }
+                // Games should be integer
+                if (stat === 'Games') {
+                    return Math.round(value);
+                }
+                // Per-game stats and advanced metrics
+                return value.toFixed(1);
+            };
+
+            const resetFilters = () => {
+                setXStat('Off Box Plus/Minus');
+                setYStat('Def Box Plus/Minus');
+                setBubbleStat('');
+                setSeasonFilter('All');
+                setTeamFilter('All');
+                setPosFilter('All');
+                setMinGames(41);
+                setComparisonOperator('>=');
+                setComparisonValue('20');
+                setPlayerSearchQuery('');
+                setSelectedPlayer(null);
+                setShowLabels(false);
+            };
+
+            if (loading) return <div className="loading">Loading NBA data...</div>;
+            if (error) return <div className="error">{error}</div>;
+
+            return (
+            <div className="chart-container">
+                <div className="header-section">
+                    <h1>NBA Stats Explorer</h1>
+                    <div className="subtitle">
+                        {currentView === 'chart' 
+                            ? `Showing ${filteredPlayers.length} players`
+                            : currentView === 'comparison'
+                            ? `Comparing ${yyComparisons.length} players Y/Y`
+                            : `Showing ${sortedRookies.length} rookies`
+                        }
+                    </div>
+                </div>
+
+                <div className="tabs">
+                    <button 
+                        className={`tab ${currentView === 'chart' ? 'active' : ''}`}
+                        onClick={() => setCurrentView('chart')}
+                    >
+                        Chart View
+                    </button>
+                    <button 
+                        className={`tab ${currentView === 'comparison' ? 'active' : ''}`}
+                        onClick={() => setCurrentView('comparison')}
+                    >
+                        Y/Y Comparison
+                    </button>
+                    <button 
+                        className={`tab ${currentView === 'rookie' ? 'active' : ''}`}
+                        onClick={() => setCurrentView('rookie')}
+                    >
+                        Rookie Report
+                    </button>
+                </div>
+
+                {currentView === 'chart' ? (
+                    <>
+                        <div className="filters-row">
+                            <div className="filter-group">
+                                <label>X-Axis</label>
+                                <select value={xStat} onChange={(e) => setXStat(e.target.value)}>
+                                    {Object.entries(statsCategories).map(([category, categoryStats]) => (
+                                        <optgroup key={category} label={category}>
+                                            {categoryStats.map(stat => (
+                                                <option key={stat} value={stat}>{stat}</option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                </select>
+                            </div>
+                    
+                            <div className="filter-group">
+                                <label>Y-Axis</label>
+                                <select value={yStat} onChange={(e) => setYStat(e.target.value)}>
+                                    {Object.entries(statsCategories).map(([category, categoryStats]) => (
+                                        <optgroup key={category} label={category}>
+                                            {categoryStats.map(stat => (
+                                                <option key={stat} value={stat}>{stat}</option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                </select>
+                            </div>
+                            
+                            <div className="filter-group">
+                                <label>Bubble Size</label>
+                                <select value={bubbleStat} onChange={(e) => setBubbleStat(e.target.value)}>
+                                    <option value="">None Selected</option>
+                                    {Object.entries(statsCategories).map(([category, categoryStats]) => (
+                                        <optgroup key={category} label={category}>
+                                            {categoryStats.map(stat => (
+                                                <option key={stat} value={stat}>{stat}</option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="filters-row">
+                            <div className="filter-group">
+                                <label>Season</label>
+                                <select value={seasonFilter} onChange={(e) => setSeasonFilter(e.target.value)}>
+                                    {seasons.map(season => <option key={season} value={season}>{season}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="filter-group">
+                                <label>Team</label>
+                                <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}>
+                                    {teams.map(team => <option key={team} value={team}>{team}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="filter-group">
+                                <label>Position</label>
+                                <select value={posFilter} onChange={(e) => setPosFilter(e.target.value)}>
+                                    {positions.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="filters-row">
+                            <div className="filter-group">
+                                <label>Min Games Played</label>
+                                <input 
+                                    type="text" 
+                                    value={minGames} 
+                                    onChange={(e) => setMinGames(parseInt(e.target.value) || 0)}
+                                    style={{ width: '80px' }}
+                                />
+                            </div>
+
+                            <div className="filter-group">
+                                <label>Min MPG</label>
+                                <div className="comparison-filter">
+                                    <select value={comparisonOperator} onChange={(e) => setComparisonOperator(e.target.value)}>
+                                        <option value=">=">&gt;=</option>
+                                        <option value=">">&gt;</option>
+                                        <option value="<=">&lt;=</option>
+                                        <option value="<">&lt;</option>
+                                        <option value="==">==</option>
+                                    </select>
+                                    <input 
+                                        type="text"
+                                        placeholder="Value"
+                                        value={comparisonValue}
+                                        onChange={(e) => setComparisonValue(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="filter-group">
+                                <label>Search Player</label>
+                                <div className="player-search-container">
+                                    <input
+                                        type="text"
+                                        className="player-search-input"
+                                        placeholder="Type player name..."
+                                        value={playerSearchQuery}
+                                        onChange={(e) => {
+                                            setPlayerSearchQuery(e.target.value);
+                                            setShowPlayerDropdown(true);
+                                            if (!e.target.value) setSelectedPlayer(null);
+                                        }}
+                                        onFocus={() => setShowPlayerDropdown(true)}
+                                    />
+                                    {showPlayerDropdown && searchedPlayers.length > 0 && (
+                                        <div className="player-dropdown">
+                                            {searchedPlayers.map((player, idx) => (
+                                                <div 
+                                                    key={idx}
+                                                    className={`player-option ${selectedPlayer === player.Player ? 'selected' : ''}`}
+                                                    onClick={() => {
+                                                        setSelectedPlayer(player.Player);
+                                                        setPlayerSearchQuery(player.Player);
+                                                        setShowPlayerDropdown(false);
+                                                    }}
+                                                >
+                                                    {player.Player} ({player.Team})
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="filter-group">
+                                <label>&nbsp;</label>
+                                <div className="checkbox-group">
+                                    <input 
+                                        type="checkbox"
+                                        id="showLabels"
+                                        checked={showLabels}
+                                        onChange={(e) => setShowLabels(e.target.checked)}
+                                    />
+                                    <label htmlFor="showLabels">Show player labels</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="filters-row">
+                            <button onClick={resetFilters}>Reset</button>
+                        </div>
+
+                        <div className="chart-wrapper">
+                            <svg 
+                                width={width} 
+                                height={height}
+                                onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
+                            >
+                        {xTicks.map(tick => (
+                            <line
+                                key={`x-grid-${tick}`}
+                                x1={xScale(tick)}
+                                y1={margin.top}
+                                x2={xScale(tick)}
+                                y2={height - margin.bottom}
+                                stroke="#e5e7eb"
+                                strokeWidth="1"
+                            />
+                        ))}
+                        {yTicks.map(tick => (
+                            <line
+                                key={`y-grid-${tick}`}
+                                x1={margin.left}
+                                y1={yScale(tick)}
+                                x2={width - margin.right}
+                                y2={yScale(tick)}
+                                stroke="#e5e7eb"
+                                strokeWidth="1"
+                            />
+                        ))}
+
+                        <line
+                            x1={margin.left}
+                            y1={height - margin.bottom}
+                            x2={width - margin.right}
+                            y2={height - margin.bottom}
+                            stroke="#374151"
+                            strokeWidth="2"
+                        />
+                        <line
+                            x1={margin.left}
+                            y1={margin.top}
+                            x2={margin.left}
+                            y2={height - margin.bottom}
+                            stroke="#374151"
+                            strokeWidth="2"
+                        />
+
+                        {xTicks.map(tick => (
+                            <g key={`x-tick-${tick}`}>
+                                <line
+                                    x1={xScale(tick)}
+                                    y1={height - margin.bottom}
+                                    x2={xScale(tick)}
+                                    y2={height - margin.bottom + 6}
+                                    stroke="#374151"
+                                    strokeWidth="2"
+                                />
+                                <text
+                                    x={xScale(tick)}
+                                    y={height - margin.bottom + 20}
+                                    textAnchor="middle"
+                                    fontSize="12"
+                                    fill="#6b7280"
+                                >
+                                    {formatStatValue(xStat, tick, true)}
+                                </text>
+                            </g>
+                        ))}
+
+                        {yTicks.map(tick => (
+                            <g key={`y-tick-${tick}`}>
+                                <line
+                                    x1={margin.left - 6}
+                                    y1={yScale(tick)}
+                                    x2={margin.left}
+                                    y2={yScale(tick)}
+                                    stroke="#374151"
+                                    strokeWidth="2"
+                                />
+                                <text
+                                    x={margin.left - 10}
+                                    y={yScale(tick)}
+                                    textAnchor="end"
+                                    dominantBaseline="middle"
+                                    fontSize="12"
+                                    fill="#6b7280"
+                                >
+                                    {formatStatValue(yStat, tick, true)}
+                                </text>
+                            </g>
+                        ))}
+
+                        <text
+                            x={width / 2}
+                            y={height - 10}
+                            textAnchor="middle"
+                            fontSize="14"
+                            fontWeight="600"
+                            fill="#374151"
+                        >
+                            {xStat}
+                        </text>
+                        <text
+                            x={-height / 2}
+                            y={15}
+                            textAnchor="middle"
+                            fontSize="14"
+                            fontWeight="600"
+                            fill="#374151"
+                            transform={`rotate(-90)`}
+                        >
+                            {yStat}
+                        </text>
+
+                        {filteredPlayers.map((player, i) => {
+                            const x = xScale(player[xStat] || 0);
+                            const y = yScale(player[yStat] || 0);
+                            const r = sizeScale(player[bubbleStat] || 0);
+                            const isSelected = selectedPlayer === player.Player;
+                            
+                            return (
+                                <g key={i}>
+                                    <circle
+                                        cx={x}
+                                        cy={y}
+                                        r={r}
+                                        fill={isSelected ? "#ef4444" : "#3b82f6"}
+                                        fillOpacity={isSelected ? "0.8" : "0.6"}
+                                        stroke={isSelected ? "#dc2626" : "#2563eb"}
+                                        strokeWidth={isSelected ? "2" : "1"}
+                                        onMouseEnter={() => setHoveredPlayer(player)}
+                                        onMouseLeave={() => setHoveredPlayer(null)}
+                                        style={{ cursor: 'pointer' }}
+                                    />
+                                    {(showLabels || isSelected) && (
+                                        <text
+                                            x={x}
+                                            y={y - r - 4}
+                                            textAnchor="middle"
+                                            fontSize="10"
+                                            fontWeight={isSelected ? "700" : "500"}
+                                            fill={isSelected ? "#ef4444" : "#1f2937"}
+                                            pointerEvents="none"
+                                        >
+                                            {player.Player}
+                                        </text>
+                                    )}
+                                </g>
+                            );
+                        })}
+                            </svg>
+
+                            {hoveredPlayer && (
+                                <div 
+                                    className="tooltip"
+                                    style={{ 
+                                        left: mousePos.x + 15,
+                                        top: mousePos.y - 15
+                                    }}
+                                >
+                                    <div className="tooltip-player">{hoveredPlayer.Player}</div>
+                                    <div>Team: {hoveredPlayer.Team}</div>
+                                    <div>Position: {hoveredPlayer.Pos}</div>
+                                    <div>Season: {hoveredPlayer.Season}</div>
+                                    {bubbleStat && <div>{bubbleStat}: {formatStatValue(bubbleStat, hoveredPlayer[bubbleStat] || 0)}</div>}
+                                    <div>{xStat}: {formatStatValue(xStat, hoveredPlayer[xStat] || 0)}</div>
+                                    <div>{yStat}: {formatStatValue(yStat, hoveredPlayer[yStat] || 0)}</div>
+                                    <div>Games: {formatStatValue('Games', hoveredPlayer.Games || 0)}</div>
+                                    <div>MPG: {formatStatValue('MPG', hoveredPlayer.MPG || 0)}</div>
+                                </div>
+                            )}
+                            
+                            <div className="source">
+                                Source: Basketball Reference
+                            </div>
+                        </div>
+                    </>
+            ) : (
+                <div className="comparison-view">
+                    <div className="comparison-header">
+                        <div className="filter-group">
+                            <label>Select Stat</label>
+                            <select 
+                                value={yyComparisonStat} 
+                                onChange={(e) => setYYComparisonStat(e.target.value)}
+                                style={{ minWidth: '200px' }}
+                            >
+                                {Object.entries(nonNegativeStatsCategories).map(([category, categoryStats]) => (
+                                    <optgroup key={category} label={category}>
+                                        {categoryStats.map(stat => (
+                                            <option key={stat} value={stat}>{stat}</option>
+                                        ))}
+                                    </optgroup>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="tables-container">
+                        <div className="table-section risers">
+                            <h2>📈 Biggest Risers</h2>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Player</th>
+                                        <th>Team</th>
+                                        <th>2024-25</th>
+                                        <th>2025-26</th>
+                                        <th>Change</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {risers.map((player, idx) => (
+                                        <tr key={idx}>
+                                            <td>{player.Player}</td>
+                                            <td>{player.Team}</td>
+                                            <td>{formatStatValue(yyComparisonStat, player[`${yyComparisonStat}_2024`])}</td>
+                                            <td>{formatStatValue(yyComparisonStat, player[`${yyComparisonStat}_2025`])}</td>
+                                            <td className="change-positive">
+                                                +{formatStatValue(yyComparisonStat, player[`${yyComparisonStat}_change`])}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="table-section fallers">
+                            <h2>📉 Biggest Fallers</h2>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Player</th>
+                                        <th>Team</th>
+                                        <th>2024-25</th>
+                                        <th>2025-26</th>
+                                        <th>Change</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {fallers.map((player, idx) => (
+                                        <tr key={idx}>
+                                            <td>{player.Player}</td>
+                                            <td>{player.Team}</td>
+                                            <td>{formatStatValue(yyComparisonStat, player[`${yyComparisonStat}_2024`])}</td>
+                                            <td>{formatStatValue(yyComparisonStat, player[`${yyComparisonStat}_2025`])}</td>
+                                            <td className="change-negative">
+                                                {formatStatValue(yyComparisonStat, player[`${yyComparisonStat}_change`])}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            ) : currentView === 'rookie' ? (
+                <div className="rookie-view">
+                    <div className="rookie-header">
+                        <h2>🌟 2025-26 Rookie Class</h2>
+                        <div className="rookie-stats">
+                            Click column headers to sort
+                        </div>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th className="sortable-header" onClick={() => handleRookieSort('Player')}>
+                                    Player
+                                    {rookieSortColumn === 'Player' && (
+                                        <span className="sort-indicator">{rookieSortDirection === 'asc' ? '↑' : '↓'}</span>
+                                    )}
+                                </th>
+                                <th className="sortable-header" onClick={() => handleRookieSort('Team')}>
+                                    Team
+                                    {rookieSortColumn === 'Team' && (
+                                        <span className="sort-indicator">{rookieSortDirection === 'asc' ? '↑' : '↓'}</span>
+                                    )}
+                                </th>
+                                <th className="sortable-header" onClick={() => handleRookieSort('Games')}>
+                                    Games
+                                    {rookieSortColumn === 'Games' && (
+                                        <span className="sort-indicator">{rookieSortDirection === 'asc' ? '↑' : '↓'}</span>
+                                    )}
+                                </th>
+                                <th className="sortable-header" onClick={() => handleRookieSort('MPG')}>
+                                    MPG
+                                    {rookieSortColumn === 'MPG' && (
+                                        <span className="sort-indicator">{rookieSortDirection === 'asc' ? '↑' : '↓'}</span>
+                                    )}
+                                </th>
+                                <th className="sortable-header" onClick={() => handleRookieSort('PPG')}>
+                                    PPG
+                                    {rookieSortColumn === 'PPG' && (
+                                        <span className="sort-indicator">{rookieSortDirection === 'asc' ? '↑' : '↓'}</span>
+                                    )}
+                                </th>
+                                <th className="sortable-header" onClick={() => handleRookieSort('RPG')}>
+                                    RPG
+                                    {rookieSortColumn === 'RPG' && (
+                                        <span className="sort-indicator">{rookieSortDirection === 'asc' ? '↑' : '↓'}</span>
+                                    )}
+                                </th>
+                                <th className="sortable-header" onClick={() => handleRookieSort('APG')}>
+                                    APG
+                                    {rookieSortColumn === 'APG' && (
+                                        <span className="sort-indicator">{rookieSortDirection === 'asc' ? '↑' : '↓'}</span>
+                                    )}
+                                </th>
+                                <th className="sortable-header" onClick={() => handleRookieSort('SPG')}>
+                                    SPG
+                                    {rookieSortColumn === 'SPG' && (
+                                        <span className="sort-indicator">{rookieSortDirection === 'asc' ? '↑' : '↓'}</span>
+                                    )}
+                                </th>
+                                <th className="sortable-header" onClick={() => handleRookieSort('BPG')}>
+                                    BPG
+                                    {rookieSortColumn === 'BPG' && (
+                                        <span className="sort-indicator">{rookieSortDirection === 'asc' ? '↑' : '↓'}</span>
+                                    )}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {paginatedRookies.map((rookie, idx) => (
+                                <tr key={idx}>
+                                    <td>{rookie.Player}</td>
+                                    <td>{rookie.Team}</td>
+                                    <td>{Math.round(rookie.Games)}</td>
+                                    <td>{rookie.MPG.toFixed(1)}</td>
+                                    <td>{rookie.PPG.toFixed(1)}</td>
+                                    <td>{rookie.RPG.toFixed(1)}</td>
+                                    <td>{rookie.APG.toFixed(1)}</td>
+                                    <td>{rookie.SPG.toFixed(1)}</td>
+                                    <td>{rookie.BPG.toFixed(1)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+
+                    <div className="pagination">
+                        <button 
+                            onClick={() => setRookiePage(rookiePage - 1)}
+                            disabled={rookiePage === 1}
+                        >
+                            Previous
+                        </button>
+                        <span className="pagination-info">
+                            Page {rookiePage} of {totalRookiePages} ({sortedRookies.length} total rookies)
+                        </span>
+                        <button 
+                            onClick={() => setRookiePage(rookiePage + 1)}
+                            disabled={rookiePage === totalRookiePages}
+                        >
+                            Next
+                        </button>
+                    </div>
+                </div>
+            ) : null}
+        </div>
+        );
+        }
+
+        ReactDOM.render(<StatsChart />, document.getElementById('root'));
+    </script>
+</body>
+</html>
