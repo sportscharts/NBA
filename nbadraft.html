@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Draft Explorer</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(to bottom right, #f8fafc, #dbeafe);
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        #root { max-width: 1600px; margin: 0 auto; }
+        
+        .header {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        h1 {
+            font-size: 1.75rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        
+        .chart-box {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .chart-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .filter-box {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .filter-box label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #4b5563;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+        
+        .filter-box select {
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            background: white;
+            cursor: pointer;
+            min-width: 200px;
+        }
+        
+        .filter-box select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            overflow-x: auto;
+        }
+        
+        svg { display: block; }
+        
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            overflow-x: auto;
+        }
+        
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .table-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        
+        thead {
+            background: #f9fafb;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        
+        th {
+            padding: 0.75rem 0.5rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        
+        th:hover {
+            background: #f3f4f6;
+        }
+        
+        th .sort-indicator {
+            display: inline-block;
+            margin-left: 0.25rem;
+            color: #3b82f6;
+            font-size: 0.75rem;
+        }
+        
+        td {
+            padding: 0.75rem 0.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #1f2937;
+        }
+        
+        td.sorted-column {
+            background: #f3f4f6;
+        }
+        
+        tr:hover {
+            background: #f9fafb;
+        }
+        
+        tr:hover td.sorted-column {
+            background: #e5e7eb;
+        }
+        
+        .tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 250px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        .tooltip-year {
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #6b7280;
+            font-size: 1.125rem;
+        }
+        
+        .error {
+            text-align: center;
+            padding: 3rem;
+            color: #ef4444;
+        }
+        
+        @media (max-width: 768px) {
+            body { padding: 0.5rem; }
+            h1 { font-size: 1.5rem; }
+            .chart-box, .table-container { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        function DraftExplorer() {
+            const [allData, setAllData] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [hoveredPoint, setHoveredPoint] = useState(null);
+            const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+            const [sortColumn, setSortColumn] = useState('Draft Year');
+            const [sortDirection, setSortDirection] = useState('desc');
+            const [selectedMetric, setSelectedMetric] = useState('totalWS');
+
+            useEffect(() => {
+                const sheetId = '1vlAyi87CMwSNP053EjKqzvoDoPI3bOwkSh_zMIDYga8';
+                
+                // Load both tabs
+                const summaryUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
+                const allPicksUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=70621378`;
+
+                Promise.all([
+                    new Promise((resolve, reject) => {
+                        Papa.parse(summaryUrl, {
+                            download: true,
+                            header: true,
+                            dynamicTyping: false,
+                            skipEmptyLines: true,
+                            complete: resolve,
+                            error: reject
+                        });
+                    }),
+                    new Promise((resolve, reject) => {
+                        Papa.parse(allPicksUrl, {
+                            download: true,
+                            header: true,
+                            dynamicTyping: false,
+                            skipEmptyLines: true,
+                            complete: resolve,
+                            error: reject
+                        });
+                    })
+                ]).then(([summaryResults, allPicksResults]) => {
+                    console.log('Loaded summary data:', summaryResults.data.length, 'rows');
+                    console.log('Loaded all picks data:', allPicksResults.data.length, 'rows');
+                    
+                    // Process all picks data to aggregate by year
+                    const playersByYear = {};
+                    
+                    allPicksResults.data.forEach(row => {
+                        const year = parseInt(row['Year']);
+                        const player = row['Player'];
+                        const allStarApps = parseInt(row['All-Star Appearances']) || 0;
+                        const allNBAHonors = parseInt(row['All-NBA Honors']) || 0;
+                        const mvps = parseInt(row['MVPs']) || 0;
+                        
+                        if (year && player) {
+                            if (!playersByYear[year]) {
+                                playersByYear[year] = {
+                                    allStars: [],
+                                    allNBA: [],
+                                    mvps: []
+                                };
+                            }
+                            
+                            if (allStarApps > 0) {
+                                playersByYear[year].allStars.push({
+                                    name: player,
+                                    count: allStarApps
+                                });
+                            }
+                            
+                            if (allNBAHonors > 0) {
+                                playersByYear[year].allNBA.push({
+                                    name: player,
+                                    count: allNBAHonors
+                                });
+                            }
+                            
+                            if (mvps > 0) {
+                                playersByYear[year].mvps.push({
+                                    name: player,
+                                    count: mvps
+                                });
+                            }
+                        }
+                    });
+                    
+                    // Sort players by count (descending) and format
+                    Object.keys(playersByYear).forEach(year => {
+                        playersByYear[year].allStars.sort((a, b) => b.count - a.count);
+                        playersByYear[year].allNBA.sort((a, b) => b.count - a.count);
+                        playersByYear[year].mvps.sort((a, b) => b.count - a.count);
+                    });
+                    
+                    // Process summary data
+                    const processedData = summaryResults.data
+                        .filter(row => row['Draft Year'] && row['Draft Year'] !== '')
+                        .map(row => {
+                            const year = parseInt(row['Draft Year']);
+                            const yearData = playersByYear[year] || { allStars: [], allNBA: [], mvps: [] };
+                            
+                            // Format All-Star Appearances
+                            const allStarsFormatted = yearData.allStars
+                                .map(p => `${p.name} (${p.count})`)
+                                .join(', ');
+                            
+                            // Format All-NBA Honors
+                            const allNBAFormatted = yearData.allNBA
+                                .map(p => `${p.name} (${p.count})`)
+                                .join(', ');
+                            
+                            // Format MVPs
+                            const mvpsFormatted = yearData.mvps
+                                .map(p => `${p.name} (${p.count})`)
+                                .join(', ');
+                            
+                            return {
+                                year: year,
+                                firstPick: row['1st Overall Pick'] || '',
+                                rookie: row['Rookie of the Year'] || '',
+                                allStars: allStarsFormatted || '',
+                                allNBA: allNBAFormatted || '',
+                                mvps: mvpsFormatted || '',
+                                totalWS: row['Total Win Shares'] ? parseFloat(row['Total Win Shares'].replace(/,/g, '')) : null,
+                                wsper48: row['Win Shares per 48 Mins'] ? parseFloat(row['Win Shares per 48 Mins']) : null
+                            };
+                        });
+                    
+                    console.log('Processed data:', processedData);
+                    setAllData(processedData);
+                    setLoading(false);
+                }).catch((err) => {
+                    console.error('Error loading data:', err);
+                    setError('Failed to load data');
+                    setLoading(false);
+                });
+            }, []);
+
+            const handleSort = (column) => {
+                if (sortColumn === column) {
+                    setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                } else {
+                    setSortColumn(column);
+                    setSortDirection('desc');
+                }
+            };
+
+            const sortedData = useMemo(() => {
+                const sorted = [...allData].sort((a, b) => {
+                    let aVal, bVal;
+                    
+                    switch(sortColumn) {
+                        case 'Draft Year':
+                            aVal = a.year;
+                            bVal = b.year;
+                            break;
+                        case '1st Overall Pick':
+                            aVal = a.firstPick;
+                            bVal = b.firstPick;
+                            break;
+                        case 'Rookie of the Year':
+                            aVal = a.rookie;
+                            bVal = b.rookie;
+                            break;
+                        case 'All-Star Appearances':
+                            aVal = a.allStars;
+                            bVal = b.allStars;
+                            break;
+                        case 'All-NBA Honors':
+                            aVal = a.allNBA;
+                            bVal = b.allNBA;
+                            break;
+                        case 'MVPs':
+                            aVal = a.mvps;
+                            bVal = b.mvps;
+                            break;
+                        case 'Total Win Shares':
+                            aVal = a.totalWS ?? -Infinity;
+                            bVal = b.totalWS ?? -Infinity;
+                            break;
+                        case 'Win Shares per 48':
+                            aVal = a.wsper48 ?? -Infinity;
+                            bVal = b.wsper48 ?? -Infinity;
+                            break;
+                        default:
+                            aVal = a.year;
+                            bVal = b.year;
+                    }
+                    
+                    if (typeof aVal === 'string') {
+                        return sortDirection === 'asc' 
+                            ? aVal.localeCompare(bVal) 
+                            : bVal.localeCompare(aVal);
+                    }
+                    
+                    return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+                });
+                
+                return sorted;
+            }, [allData, sortColumn, sortDirection]);
+
+            if (loading) return <div className="loading">Loading NBA Draft data...</div>;
+            if (error) return <div className="error">{error}</div>;
+            if (allData.length === 0) return <div className="loading">No data available</div>;
+
+            const renderLineChart = () => {
+                const dataKey = selectedMetric;
+                const title = selectedMetric === 'totalWS' ? 'Total Win Shares by Draft Year' : 'Win Shares per 48 Minutes by Draft Year';
+                const yAxisLabel = selectedMetric === 'totalWS' ? 'Total Win Shares' : 'Win Shares per 48';
+                
+                const chartData = allData.filter(d => d[dataKey] !== null);
+                
+                if (chartData.length === 0) {
+                    return (
+                        <div className="chart-box">
+                            <div className="chart-header">
+                                <div className="chart-title">{title}</div>
+                                <div className="filter-box">
+                                    <label>Metric</label>
+                                    <select value={selectedMetric} onChange={(e) => setSelectedMetric(e.target.value)}>
+                                        <option value="totalWS">Total Win Shares</option>
+                                        <option value="wsper48">Win Shares per 48 Minutes</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>
+                                No data available
+                            </div>
+                        </div>
+                    );
+                }
+
+                const width = 1200;
+                const height = 400;
+                const margin = { top: 20, right: 40, bottom: 50, left: 70 };
+                const chartWidth = width - margin.left - margin.right;
+                const chartHeight = height - margin.top - margin.bottom;
+
+                const years = chartData.map(d => d.year);
+                const values = chartData.map(d => d[dataKey]);
+                
+                const minYear = Math.min(...years);
+                const maxYear = Math.max(...years);
+                const minValue = Math.min(...values);
+                const maxValue = Math.max(...values);
+                
+                const valueRange = maxValue - minValue;
+                const yMin = minValue - valueRange * 0.1;
+                const yMax = maxValue + valueRange * 0.1;
+
+                const scaleX = (year) => ((year - minYear) / (maxYear - minYear)) * chartWidth;
+                const scaleY = (value) => chartHeight - ((value - yMin) / (yMax - yMin)) * chartHeight;
+
+                const pathData = chartData.map((d, i) => {
+                    const x = scaleX(d.year);
+                    const y = scaleY(d[dataKey]);
+                    return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+                }).join(' ');
+
+                const yTicks = [];
+                for (let i = 0; i <= 5; i++) {
+                    yTicks.push(yMin + (yMax - yMin) * (i / 5));
+                }
+
+                const xTicks = [];
+                const yearStep = Math.ceil((maxYear - minYear) / 10);
+                for (let year = minYear; year <= maxYear; year += yearStep) {
+                    xTicks.push(year);
+                }
+                
+                const formatValue = (value) => {
+                    if (selectedMetric === 'wsper48') {
+                        return value.toFixed(3);
+                    }
+                    return Math.round(value).toLocaleString();
+                };
+
+                return (
+                    <div className="chart-box">
+                        <div className="chart-header">
+                            <div className="chart-title">{title}</div>
+                            <div className="filter-box">
+                                <label>Metric</label>
+                                <select value={selectedMetric} onChange={(e) => setSelectedMetric(e.target.value)}>
+                                    <option value="totalWS">Total Win Shares</option>
+                                    <option value="wsper48">Win Shares per 48 Minutes</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="chart-wrapper">
+                            <svg 
+                                width={width} 
+                                height={height}
+                                onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
+                            >
+                                <g transform={`translate(${margin.left},${margin.top})`}>
+                                    {yTicks.map(tick => (
+                                        <line
+                                            key={`y-grid-${tick}`}
+                                            x1={0}
+                                            y1={scaleY(tick)}
+                                            x2={chartWidth}
+                                            y2={scaleY(tick)}
+                                            stroke="#e5e7eb"
+                                            strokeWidth="1"
+                                        />
+                                    ))}
+
+                                    <line
+                                        x1={0}
+                                        y1={chartHeight}
+                                        x2={chartWidth}
+                                        y2={chartHeight}
+                                        stroke="#374151"
+                                        strokeWidth="2"
+                                    />
+                                    <line
+                                        x1={0}
+                                        y1={0}
+                                        x2={0}
+                                        y2={chartHeight}
+                                        stroke="#374151"
+                                        strokeWidth="2"
+                                    />
+
+                                    {yTicks.map(tick => (
+                                        <g key={`y-tick-${tick}`}>
+                                            <line
+                                                x1={-6}
+                                                y1={scaleY(tick)}
+                                                x2={0}
+                                                y2={scaleY(tick)}
+                                                stroke="#374151"
+                                                strokeWidth="2"
+                                            />
+                                            <text
+                                                x={-10}
+                                                y={scaleY(tick)}
+                                                textAnchor="end"
+                                                dominantBaseline="middle"
+                                                fontSize="12"
+                                                fill="#6b7280"
+                                            >
+                                                {formatValue(tick)}
+                                            </text>
+                                        </g>
+                                    ))}
+
+                                    {xTicks.map(tick => (
+                                        <g key={`x-tick-${tick}`}>
+                                            <line
+                                                x1={scaleX(tick)}
+                                                y1={chartHeight}
+                                                x2={scaleX(tick)}
+                                                y2={chartHeight + 6}
+                                                stroke="#374151"
+                                                strokeWidth="2"
+                                            />
+                                            <text
+                                                x={scaleX(tick)}
+                                                y={chartHeight + 20}
+                                                textAnchor="middle"
+                                                fontSize="12"
+                                                fill="#6b7280"
+                                            >
+                                                {tick}
+                                            </text>
+                                        </g>
+                                    ))}
+
+                                    <text
+                                        x={chartWidth / 2}
+                                        y={chartHeight + 40}
+                                        textAnchor="middle"
+                                        fontSize="14"
+                                        fontWeight="600"
+                                        fill="#374151"
+                                    >
+                                        Draft Year
+                                    </text>
+                                    <text
+                                        x={-chartHeight / 2}
+                                        y={-50}
+                                        textAnchor="middle"
+                                        fontSize="14"
+                                        fontWeight="600"
+                                        fill="#374151"
+                                        transform={`rotate(-90)`}
+                                    >
+                                        {yAxisLabel}
+                                    </text>
+
+                                    <path
+                                        d={pathData}
+                                        fill="none"
+                                        stroke="#3b82f6"
+                                        strokeWidth="3"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
+
+                                    {chartData.map((d, i) => {
+                                        const x = scaleX(d.year);
+                                        const y = scaleY(d[dataKey]);
+                                        const isHovered = hoveredPoint?.year === d.year;
+                                        
+                                        return (
+                                            <circle
+                                                key={i}
+                                                cx={x}
+                                                cy={y}
+                                                r={isHovered ? 6 : 4}
+                                                fill={isHovered ? "#2563eb" : "#3b82f6"}
+                                                stroke="white"
+                                                strokeWidth="2"
+                                                style={{ cursor: 'pointer' }}
+                                                onMouseEnter={() => setHoveredPoint(d)}
+                                                onMouseLeave={() => setHoveredPoint(null)}
+                                            />
+                                        );
+                                    })}
+                                </g>
+                            </svg>
+
+                            {hoveredPoint && (
+                                <div 
+                                    className="tooltip"
+                                    style={{ 
+                                        left: mousePos.x + 15,
+                                        top: mousePos.y - 15
+                                    }}
+                                >
+                                    <div className="tooltip-year">{hoveredPoint.year} Draft</div>
+                                    <div>{yAxisLabel}: {formatValue(hoveredPoint[dataKey])}</div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div>
+                    <div className="header">
+                        <h1>NBA Draft Explorer</h1>
+                        <p className="subtitle">Analyzing draft class success metrics from 1980-2012</p>
+                    </div>
+
+                    {renderLineChart()}
+
+                    <div className="table-container">
+                        <div className="table-header">
+                            <div className="table-title">Draft Summary by Year</div>
+                        </div>
+                        
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th onClick={() => handleSort('Draft Year')}>
+                                        Draft Year
+                                        {sortColumn === 'Draft Year' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('1st Overall Pick')}>
+                                        1st Overall Pick
+                                        {sortColumn === '1st Overall Pick' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('Rookie of the Year')}>
+                                        Rookie of the Year
+                                        {sortColumn === 'Rookie of the Year' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('All-Star Appearances')}>
+                                        All-Star Appearances
+                                        {sortColumn === 'All-Star Appearances' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('All-NBA Honors')}>
+                                        All-NBA Honors
+                                        {sortColumn === 'All-NBA Honors' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('MVPs')}>
+                                        MVPs
+                                        {sortColumn === 'MVPs' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('Total Win Shares')}>
+                                        Total Win Shares
+                                        {sortColumn === 'Total Win Shares' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('Win Shares per 48')}>
+                                        Win Shares per 48
+                                        {sortColumn === 'Win Shares per 48' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedData.map((row, i) => (
+                                    <tr key={i}>
+                                        <td className={sortColumn === 'Draft Year' ? 'sorted-column' : ''}>
+                                            {row.year}
+                                        </td>
+                                        <td className={sortColumn === '1st Overall Pick' ? 'sorted-column' : ''}>
+                                            {row.firstPick}
+                                        </td>
+                                        <td className={sortColumn === 'Rookie of the Year' ? 'sorted-column' : ''}>
+                                            {row.rookie}
+                                        </td>
+                                        <td className={sortColumn === 'All-Star Appearances' ? 'sorted-column' : ''}>
+                                            {row.allStars}
+                                        </td>
+                                        <td className={sortColumn === 'All-NBA Honors' ? 'sorted-column' : ''}>
+                                            {row.allNBA}
+                                        </td>
+                                        <td className={sortColumn === 'MVPs' ? 'sorted-column' : ''}>
+                                            {row.mvps}
+                                        </td>
+                                        <td className={sortColumn === 'Total Win Shares' ? 'sorted-column' : ''}>
+                                            {row.totalWS ? row.totalWS.toLocaleString() : '-'}
+                                        </td>
+                                        <td className={sortColumn === 'Win Shares per 48' ? 'sorted-column' : ''}>
+                                            {row.wsper48 ? row.wsper48.toFixed(3) : '-'}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<DraftExplorer />, document.getElementById('root'));
+    </script>
+</body>
+</html>
