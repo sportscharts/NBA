@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Draft Explorer</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(to bottom right, #f8fafc, #dbeafe);
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        #root { max-width: 1600px; margin: 0 auto; }
+        
+        .header {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: white;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #6b7280;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .tab.active {
+            background: white;
+            color: #3b82f6;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .tab:hover:not(.active) {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        h1 {
+            font-size: 1.75rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        
+        .chart-box {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .chart-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .filter-box {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .filter-box label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #4b5563;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+        
+        .filter-box select {
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            background: white;
+            cursor: pointer;
+            min-width: 200px;
+        }
+        
+        .filter-box select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            overflow-x: auto;
+        }
+        
+        svg { display: block; }
+        
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+        }
+        
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .table-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .table-wrapper {
+            max-height: 600px;
+            overflow-y: auto;
+            overflow-x: auto;
+            position: relative;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        
+        thead {
+            background: #f9fafb;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        
+        th {
+            padding: 0.75rem 0.5rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            background: #f9fafb;
+        }
+        
+        th:hover {
+            background: #f3f4f6;
+        }
+        
+        th .sort-indicator {
+            display: inline-block;
+            margin-left: 0.25rem;
+            color: #3b82f6;
+            font-size: 0.75rem;
+        }
+        
+        td {
+            padding: 0.75rem 0.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #1f2937;
+        }
+        
+        td.sorted-column {
+            background: #f3f4f6;
+        }
+        
+        td.hoverable {
+            cursor: help;
+            position: relative;
+        }
+        
+        td.hoverable:hover {
+            background: #dbeafe;
+            color: #1e40af;
+            font-weight: 500;
+        }
+        
+        .icon-container {
+            display: inline-flex;
+            gap: 2px;
+            flex-wrap: wrap;
+        }
+        
+        .icon-star, .icon-medal, .icon-trophy {
+            font-size: 1rem;
+            line-height: 1;
+        }
+        
+        tr:hover {
+            background: #f9fafb;
+        }
+        
+        tr:hover td.sorted-column {
+            background: #e5e7eb;
+        }
+        
+        tr:hover td.hoverable {
+            background: #dbeafe;
+        }
+        
+        .tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 250px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        .tooltip-year {
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #6b7280;
+            font-size: 1.125rem;
+        }
+        
+        .error {
+            text-align: center;
+            padding: 3rem;
+            color: #ef4444;
+        }
+        
+        @media (max-width: 768px) {
+            body { padding: 0.5rem; }
+            h1 { font-size: 1.5rem; }
+            .chart-box, .table-container { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        function DraftExplorer() {
+            const [allData, setAllData] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [hoveredPoint, setHoveredPoint] = useState(null);
+            const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+            const [sortColumn, setSortColumn] = useState('Draft Year');
+            const [sortDirection, setSortDirection] = useState('desc');
+            const [selectedMetric, setSelectedMetric] = useState('totalWS');
+            const [selectedSecondaryMetric, setSelectedSecondaryMetric] = useState('wsper48');
+            const [hoveredCell, setHoveredCell] = useState(null);
+            const [cellMousePos, setCellMousePos] = useState({ x: 0, y: 0 });
+            const [activeTab, setActiveTab] = useState('summary');
+            const [selectedDraftYear, setSelectedDraftYear] = useState(null);
+            const [allPicksData, setAllPicksData] = useState([]);
+
+            useEffect(() => {
+                const sheetId = '1vlAyi87CMwSNP053EjKqzvoDoPI3bOwkSh_zMIDYga8';
+                
+                // Load both tabs
+                const summaryUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
+                const allPicksUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=70621378`;
+
+                Promise.all([
+                    new Promise((resolve, reject) => {
+                        Papa.parse(summaryUrl, {
+                            download: true,
+                            header: true,
+                            dynamicTyping: false,
+                            skipEmptyLines: true,
+                            complete: resolve,
+                            error: reject
+                        });
+                    }),
+                    new Promise((resolve, reject) => {
+                        Papa.parse(allPicksUrl, {
+                            download: true,
+                            header: true,
+                            dynamicTyping: false,
+                            skipEmptyLines: true,
+                            complete: resolve,
+                            error: reject
+                        });
+                    })
+                ]).then(([summaryResults, allPicksResults]) => {
+                    console.log('Loaded summary data:', summaryResults.data.length, 'rows');
+                    console.log('Loaded all picks data:', allPicksResults.data.length, 'rows');
+                    
+                    // Process all picks data to aggregate by year
+                    const playersByYear = {};
+                    
+                    allPicksResults.data.forEach(row => {
+                        const year = parseInt(row['Year']);
+                        const player = row['Player'];
+                        const allStarApps = parseInt(row['All-Star Appearances']) || 0;
+                        const allNBAHonors = parseInt(row['All-NBA Honors']) || 0;
+                        const mvps = parseInt(row['MVPs']) || 0;
+                        
+                        if (year && player) {
+                            if (!playersByYear[year]) {
+                                playersByYear[year] = {
+                                    allStars: [],
+                                    allNBA: [],
+                                    mvps: []
+                                };
+                            }
+                            
+                            if (allStarApps > 0) {
+                                playersByYear[year].allStars.push({
+                                    name: player,
+                                    count: allStarApps
+                                });
+                            }
+                            
+                            if (allNBAHonors > 0) {
+                                playersByYear[year].allNBA.push({
+                                    name: player,
+                                    count: allNBAHonors
+                                });
+                            }
+                            
+                            if (mvps > 0) {
+                                playersByYear[year].mvps.push({
+                                    name: player,
+                                    count: mvps
+                                });
+                            }
+                        }
+                    });
+                    
+                    // Sort players by count (descending) and format
+                    Object.keys(playersByYear).forEach(year => {
+                        playersByYear[year].allStars.sort((a, b) => b.count - a.count);
+                        playersByYear[year].allNBA.sort((a, b) => b.count - a.count);
+                        playersByYear[year].mvps.sort((a, b) => b.count - a.count);
+                    });
+                    
+                    // Process summary data
+                    const processedData = summaryResults.data
+                        .filter(row => row['Draft Year'] && row['Draft Year'] !== '')
+                        .map(row => {
+                            const year = parseInt(row['Draft Year']);
+                            const yearData = playersByYear[year] || { allStars: [], allNBA: [], mvps: [] };
+                            
+                            return {
+                                year: year,
+                                firstPick: row['1st Overall Pick'] || '',
+                                rookie: row['Rookie of the Year'] || '',
+                                allStarsCount: yearData.allStars.length,
+                                allStarsPlayers: yearData.allStars,
+                                allNBACount: yearData.allNBA.length,
+                                allNBAPlayers: yearData.allNBA,
+                                mvpsCount: yearData.mvps.length,
+                                mvpsPlayers: yearData.mvps,
+                                totalWS: row['Total Win Shares'] ? parseFloat(row['Total Win Shares'].replace(/,/g, '')) : null,
+                                wsper48: row['Win Shares per 48 Mins'] ? parseFloat(row['Win Shares per 48 Mins']) : null
+                            };
+                        });
+                    
+                    console.log('Processed data:', processedData);
+                    setAllData(processedData);
+                    
+                    // Store all picks data for Draft Explorer tab
+                    setAllPicksData(allPicksResults.data);
+                    
+                    // Set default draft year to the most recent
+                    const years = processedData.map(d => d.year).sort((a, b) => b - a);
+                    if (years.length > 0) {
+                        setSelectedDraftYear(years[0]);
+                    }
+                    
+                    setLoading(false);
+                }).catch((err) => {
+                    console.error('Error loading data:', err);
+                    setError('Failed to load data');
+                    setLoading(false);
+                });
+            }, []);
+
+            const handleSort = (column) => {
+                if (sortColumn === column) {
+                    setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                } else {
+                    setSortColumn(column);
+                    setSortDirection('desc');
+                }
+            };
+
+            const sortedData = useMemo(() => {
+                const sorted = [...allData].sort((a, b) => {
+                    let aVal, bVal;
+                    
+                    switch(sortColumn) {
+                        case 'Draft Year':
+                            aVal = a.year;
+                            bVal = b.year;
+                            break;
+                        case '1st Overall Pick':
+                            aVal = a.firstPick;
+                            bVal = b.firstPick;
+                            break;
+                        case 'Rookie of the Year':
+                            aVal = a.rookie;
+                            bVal = b.rookie;
+                            break;
+                        case 'All-Star Appearances':
+                            aVal = a.allStarsCount;
+                            bVal = b.allStarsCount;
+                            break;
+                        case 'All-NBA Honors':
+                            aVal = a.allNBACount;
+                            bVal = b.allNBACount;
+                            break;
+                        case 'MVPs':
+                            aVal = a.mvpsCount;
+                            bVal = b.mvpsCount;
+                            break;
+                        case 'Total Win Shares':
+                            aVal = a.totalWS ?? -Infinity;
+                            bVal = b.totalWS ?? -Infinity;
+                            break;
+                        case 'Win Shares per 48':
+                            aVal = a.wsper48 ?? -Infinity;
+                            bVal = b.wsper48 ?? -Infinity;
+                            break;
+                        default:
+                            aVal = a.year;
+                            bVal = b.year;
+                    }
+                    
+                    if (typeof aVal === 'string') {
+                        return sortDirection === 'asc' 
+                            ? aVal.localeCompare(bVal) 
+                            : bVal.localeCompare(aVal);
+                    }
+                    
+                    return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+                });
+                
+                return sorted;
+            }, [allData, sortColumn, sortDirection]);
+            
+            const getWsPerColor = (value) => {
+                if (value === null || value === undefined) return 'transparent';
+                
+                // Get all WS/48 values to calculate percentiles
+                const allValues = allData
+                    .map(d => d.wsper48)
+                    .filter(v => v !== null && v !== undefined)
+                    .sort((a, b) => a - b);
+                
+                if (allValues.length === 0) return 'transparent';
+                
+                const min = allValues[0];
+                const max = allValues[allValues.length - 1];
+                
+                // Normalize value to 0-1 scale
+                const normalized = (value - min) / (max - min);
+                
+                // Create a gradient from red -> yellow -> green
+                let r, g, b, alpha;
+                
+                if (normalized < 0.33) {
+                    // Red zone (low values)
+                    const position = normalized / 0.33;
+                    r = 239;
+                    g = Math.round(68 + (204 - 68) * position);
+                    b = 68;
+                    alpha = 0.25 + position * 0.1;
+                } else if (normalized < 0.67) {
+                    // Yellow zone (mid values)
+                    const position = (normalized - 0.33) / 0.34;
+                    r = Math.round(250 - (250 - 234) * position);
+                    g = Math.round(204 - (204 - 179) * position);
+                    b = Math.round(21 + (68 - 21) * position);
+                    alpha = 0.3;
+                } else {
+                    // Green zone (high values)
+                    const position = (normalized - 0.67) / 0.33;
+                    r = Math.round(234 - (234 - 34) * position);
+                    g = Math.round(179 + (197 - 179) * position);
+                    b = Math.round(68 + (94 - 68) * position);
+                    alpha = 0.25 + position * 0.15;
+                }
+                
+                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            };
+
+            if (loading) return <div className="loading">Loading NBA Draft data...</div>;
+            if (error) return <div className="error">{error}</div>;
+            if (allData.length === 0) return <div className="loading">No data available</div>;
+
+            const renderDraftExplorer = () => {
+                if (!selectedDraftYear) return null;
+                
+                // Filter picks for selected year
+                const yearPicks = allPicksData.filter(pick => {
+                    const year = parseInt(pick.Year);
+                    return year === selectedDraftYear;
+                });
+                
+                // Sort by round and pick number
+                const sortedPicks = yearPicks.sort((a, b) => {
+                    const roundA = parseInt(a.Round) || 0;
+                    const roundB = parseInt(b.Round) || 0;
+                    const pkA = parseInt(a.Pk) || 0;
+                    const pkB = parseInt(b.Pk) || 0;
+                    
+                    if (roundA !== roundB) return roundA - roundB;
+                    return pkA - pkB;
+                });
+                
+                // Get unique draft years for dropdown
+                const draftYears = [...new Set(allPicksData.map(p => parseInt(p.Year)))]
+                    .filter(y => !isNaN(y))
+                    .sort((a, b) => b - a);
+                
+                return (
+                    <div className="table-container">
+                        <div className="table-header">
+                            <div className="table-title">{selectedDraftYear} NBA Draft</div>
+                            <div className="filter-box">
+                                <label>Draft Year</label>
+                                <select 
+                                    value={selectedDraftYear} 
+                                    onChange={(e) => setSelectedDraftYear(parseInt(e.target.value))}
+                                >
+                                    {draftYears.map(year => (
+                                        <option key={year} value={year}>{year}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div className="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Rnd</th>
+                                        <th>Pk</th>
+                                        <th>Team</th>
+                                        <th>Player</th>
+                                        <th>PPG</th>
+                                        <th>RPG</th>
+                                        <th>APG</th>
+                                        <th>FG%</th>
+                                        <th>3P%</th>
+                                        <th>FT%</th>
+                                        <th>WS</th>
+                                        <th>WS/48</th>
+                                        <th>BPM</th>
+                                        <th>VORP</th>
+                                        <th>All-Stars</th>
+                                        <th>All-NBA</th>
+                                        <th>MVPs</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sortedPicks.map((pick, i) => {
+                                        const allStars = parseInt(pick['All-Star Appearances']) || 0;
+                                        const allNBA = parseInt(pick['All-NBA Honors']) || 0;
+                                        const mvps = parseInt(pick['MVPs']) || 0;
+                                        
+                                        return (
+                                            <tr key={i}>
+                                                <td>{pick.Round || '-'}</td>
+                                                <td>{pick.Pk || '-'}</td>
+                                                <td>{pick.Tm || '-'}</td>
+                                                <td style={{ fontWeight: 500 }}>{pick.Player || '-'}</td>
+                                                <td>{pick.PPG || '-'}</td>
+                                                <td>{pick.RPG || '-'}</td>
+                                                <td>{pick.APG || '-'}</td>
+                                                <td>{pick['FG%'] ? (parseFloat(pick['FG%']) * 100).toFixed(1) + '%' : '-'}</td>
+                                                <td>{pick['3P%'] ? (parseFloat(pick['3P%']) * 100).toFixed(1) + '%' : '-'}</td>
+                                                <td>{pick['FT%'] ? (parseFloat(pick['FT%']) * 100).toFixed(1) + '%' : '-'}</td>
+                                                <td>{pick.WS || '-'}</td>
+                                                <td>{pick['WS/48'] || '-'}</td>
+                                                <td>{pick.BPM || '-'}</td>
+                                                <td>{pick.VORP || '-'}</td>
+                                                <td>
+                                                    {allStars > 0 ? (
+                                                        <span className="icon-container">
+                                                            {Array.from({ length: allStars }).map((_, idx) => (
+                                                                <span key={idx} className="icon-star">⭐</span>
+                                                            ))}
+                                                        </span>
+                                                    ) : '-'}
+                                                </td>
+                                                <td>
+                                                    {allNBA > 0 ? (
+                                                        <span className="icon-container">
+                                                            {Array.from({ length: allNBA }).map((_, idx) => (
+                                                                <span key={idx} className="icon-medal">🏅</span>
+                                                            ))}
+                                                        </span>
+                                                    ) : '-'}
+                                                </td>
+                                                <td>
+                                                    {mvps > 0 ? (
+                                                        <span className="icon-container">
+                                                            {Array.from({ length: mvps }).map((_, idx) => (
+                                                                <span key={idx} className="icon-trophy">🏆</span>
+                                                            ))}
+                                                        </span>
+                                                    ) : '-'}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderLineChart = () => {
+                const primaryDataKey = selectedMetric;
+                const secondaryDataKey = selectedSecondaryMetric;
+                
+                const metricLabels = {
+                    'totalWS': 'Total Win Shares',
+                    'wsper48': 'Win Shares per 48 Minutes'
+                };
+                
+                const primaryLabel = metricLabels[primaryDataKey];
+                const secondaryLabel = metricLabels[secondaryDataKey];
+                
+                const primaryData = allData.filter(d => d[primaryDataKey] !== null);
+                const secondaryData = allData.filter(d => d[secondaryDataKey] !== null);
+                
+                if (primaryData.length === 0 && secondaryData.length === 0) {
+                    return (
+                        <div className="chart-box">
+                            <div className="chart-header">
+                                <div className="chart-title">Draft Class Performance Metrics</div>
+                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                    <div className="filter-box">
+                                        <label>Primary Axis</label>
+                                        <select value={selectedMetric} onChange={(e) => setSelectedMetric(e.target.value)}>
+                                            <option value="totalWS">Total Win Shares</option>
+                                            <option value="wsper48">Win Shares per 48 Minutes</option>
+                                        </select>
+                                    </div>
+                                    <div className="filter-box">
+                                        <label>Secondary Axis</label>
+                                        <select value={selectedSecondaryMetric} onChange={(e) => setSelectedSecondaryMetric(e.target.value)}>
+                                            <option value="totalWS">Total Win Shares</option>
+                                            <option value="wsper48">Win Shares per 48 Minutes</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>
+                                No data available
+                            </div>
+                        </div>
+                    );
+                }
+
+                const width = 1400;
+                const height = 400;
+                const margin = { top: 20, right: 70, bottom: 50, left: 70 };
+                const chartWidth = width - margin.left - margin.right;
+                const chartHeight = height - margin.top - margin.bottom;
+
+                // Get all years from both datasets
+                const allYears = [...new Set([...primaryData.map(d => d.year), ...secondaryData.map(d => d.year)])].sort();
+                const minYear = Math.min(...allYears);
+                const maxYear = Math.max(...allYears);
+
+                // Primary axis scale
+                const primaryValues = primaryData.map(d => d[primaryDataKey]);
+                const minPrimary = Math.min(...primaryValues);
+                const maxPrimary = Math.max(...primaryValues);
+                const primaryRange = maxPrimary - minPrimary;
+                const yMinPrimary = minPrimary - primaryRange * 0.1;
+                const yMaxPrimary = maxPrimary + primaryRange * 0.1;
+
+                // Secondary axis scale
+                const secondaryValues = secondaryData.map(d => d[secondaryDataKey]);
+                const minSecondary = Math.min(...secondaryValues);
+                const maxSecondary = Math.max(...secondaryValues);
+                const secondaryRange = maxSecondary - minSecondary;
+                const yMinSecondary = minSecondary - secondaryRange * 0.1;
+                const yMaxSecondary = maxSecondary + secondaryRange * 0.1;
+
+                const scaleX = (year) => ((year - minYear) / (maxYear - minYear)) * chartWidth;
+                const scaleYPrimary = (value) => chartHeight - ((value - yMinPrimary) / (yMaxPrimary - yMinPrimary)) * chartHeight;
+                const scaleYSecondary = (value) => chartHeight - ((value - yMinSecondary) / (yMaxSecondary - yMinSecondary)) * chartHeight;
+
+                // Path for primary data
+                const primaryPath = primaryData.map((d, i) => {
+                    const x = scaleX(d.year);
+                    const y = scaleYPrimary(d[primaryDataKey]);
+                    return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+                }).join(' ');
+
+                // Path for secondary data
+                const secondaryPath = secondaryData.map((d, i) => {
+                    const x = scaleX(d.year);
+                    const y = scaleYSecondary(d[secondaryDataKey]);
+                    return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+                }).join(' ');
+
+                // Ticks
+                const yTicksPrimary = [];
+                for (let i = 0; i <= 5; i++) {
+                    yTicksPrimary.push(yMinPrimary + (yMaxPrimary - yMinPrimary) * (i / 5));
+                }
+
+                const yTicksSecondary = [];
+                for (let i = 0; i <= 5; i++) {
+                    yTicksSecondary.push(yMinSecondary + (yMaxSecondary - yMinSecondary) * (i / 5));
+                }
+
+                const xTicks = [];
+                const yearStep = Math.ceil((maxYear - minYear) / 12);
+                for (let year = minYear; year <= maxYear; year += yearStep) {
+                    xTicks.push(year);
+                }
+                
+                const formatValue = (value, dataKey) => {
+                    if (dataKey === 'wsper48') {
+                        return value.toFixed(3);
+                    }
+                    return Math.round(value).toLocaleString();
+                };
+
+                return (
+                    <div className="chart-box">
+                        <div className="chart-header">
+                            <div className="chart-title">Draft Class Performance Metrics</div>
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                <div className="filter-box">
+                                    <label>Primary Axis (Dark Blue)</label>
+                                    <select value={selectedMetric} onChange={(e) => setSelectedMetric(e.target.value)}>
+                                        <option value="totalWS">Total Win Shares</option>
+                                        <option value="wsper48">Win Shares per 48 Minutes</option>
+                                    </select>
+                                </div>
+                                <div className="filter-box">
+                                    <label>Secondary Axis (Light Blue)</label>
+                                    <select value={selectedSecondaryMetric} onChange={(e) => setSelectedSecondaryMetric(e.target.value)}>
+                                        <option value="totalWS">Total Win Shares</option>
+                                        <option value="wsper48">Win Shares per 48 Minutes</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="chart-wrapper">
+                            <svg 
+                                width={width} 
+                                height={height}
+                                onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
+                            >
+                                <g transform={`translate(${margin.left},${margin.top})`}>
+                                    {/* Grid lines for primary axis */}
+                                    {yTicksPrimary.map(tick => (
+                                        <line
+                                            key={`y-grid-primary-${tick}`}
+                                            x1={0}
+                                            y1={scaleYPrimary(tick)}
+                                            x2={chartWidth}
+                                            y2={scaleYPrimary(tick)}
+                                            stroke="#e5e7eb"
+                                            strokeWidth="1"
+                                        />
+                                    ))}
+
+                                    {/* Axes */}
+                                    <line
+                                        x1={0}
+                                        y1={chartHeight}
+                                        x2={chartWidth}
+                                        y2={chartHeight}
+                                        stroke="#374151"
+                                        strokeWidth="2"
+                                    />
+                                    <line
+                                        x1={0}
+                                        y1={0}
+                                        x2={0}
+                                        y2={chartHeight}
+                                        stroke="#374151"
+                                        strokeWidth="2"
+                                    />
+                                    <line
+                                        x1={chartWidth}
+                                        y1={0}
+                                        x2={chartWidth}
+                                        y2={chartHeight}
+                                        stroke="#374151"
+                                        strokeWidth="2"
+                                    />
+
+                                    {/* Primary Y-axis ticks and labels */}
+                                    {yTicksPrimary.map(tick => (
+                                        <g key={`y-tick-primary-${tick}`}>
+                                            <line
+                                                x1={-6}
+                                                y1={scaleYPrimary(tick)}
+                                                x2={0}
+                                                y2={scaleYPrimary(tick)}
+                                                stroke="#374151"
+                                                strokeWidth="2"
+                                            />
+                                            <text
+                                                x={-10}
+                                                y={scaleYPrimary(tick)}
+                                                textAnchor="end"
+                                                dominantBaseline="middle"
+                                                fontSize="12"
+                                                fill="#1e40af"
+                                            >
+                                                {formatValue(tick, primaryDataKey)}
+                                            </text>
+                                        </g>
+                                    ))}
+
+                                    {/* Secondary Y-axis ticks and labels */}
+                                    {yTicksSecondary.map(tick => (
+                                        <g key={`y-tick-secondary-${tick}`}>
+                                            <line
+                                                x1={chartWidth}
+                                                y1={scaleYSecondary(tick)}
+                                                x2={chartWidth + 6}
+                                                y2={scaleYSecondary(tick)}
+                                                stroke="#374151"
+                                                strokeWidth="2"
+                                            />
+                                            <text
+                                                x={chartWidth + 10}
+                                                y={scaleYSecondary(tick)}
+                                                textAnchor="start"
+                                                dominantBaseline="middle"
+                                                fontSize="12"
+                                                fill="#60a5fa"
+                                            >
+                                                {formatValue(tick, secondaryDataKey)}
+                                            </text>
+                                        </g>
+                                    ))}
+
+                                    {/* X-axis ticks */}
+                                    {xTicks.map(tick => (
+                                        <g key={`x-tick-${tick}`}>
+                                            <line
+                                                x1={scaleX(tick)}
+                                                y1={chartHeight}
+                                                x2={scaleX(tick)}
+                                                y2={chartHeight + 6}
+                                                stroke="#374151"
+                                                strokeWidth="2"
+                                            />
+                                            <text
+                                                x={scaleX(tick)}
+                                                y={chartHeight + 20}
+                                                textAnchor="middle"
+                                                fontSize="12"
+                                                fill="#6b7280"
+                                            >
+                                                {tick}
+                                            </text>
+                                        </g>
+                                    ))}
+
+                                    {/* Axis labels */}
+                                    <text
+                                        x={chartWidth / 2}
+                                        y={chartHeight + 40}
+                                        textAnchor="middle"
+                                        fontSize="14"
+                                        fontWeight="600"
+                                        fill="#374151"
+                                    >
+                                        Draft Year
+                                    </text>
+                                    <text
+                                        x={-chartHeight / 2}
+                                        y={-50}
+                                        textAnchor="middle"
+                                        fontSize="14"
+                                        fontWeight="600"
+                                        fill="#1e40af"
+                                        transform={`rotate(-90)`}
+                                    >
+                                        {primaryLabel}
+                                    </text>
+                                    <text
+                                        x={chartHeight / 2}
+                                        y={-chartWidth - 50}
+                                        textAnchor="middle"
+                                        fontSize="14"
+                                        fontWeight="600"
+                                        fill="#60a5fa"
+                                        transform={`rotate(90)`}
+                                    >
+                                        {secondaryLabel}
+                                    </text>
+
+                                    {/* Secondary line (draw first so primary is on top) */}
+                                    <path
+                                        d={secondaryPath}
+                                        fill="none"
+                                        stroke="#60a5fa"
+                                        strokeWidth="2.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        opacity="0.8"
+                                    />
+
+                                    {/* Primary line */}
+                                    <path
+                                        d={primaryPath}
+                                        fill="none"
+                                        stroke="#1e40af"
+                                        strokeWidth="3"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
+
+                                    {/* Secondary data points */}
+                                    {secondaryData.map((d, i) => {
+                                        const x = scaleX(d.year);
+                                        const y = scaleYSecondary(d[secondaryDataKey]);
+                                        const isHovered = hoveredPoint?.year === d.year && hoveredPoint?.dataKey === 'secondary';
+                                        
+                                        return (
+                                            <circle
+                                                key={`secondary-${i}`}
+                                                cx={x}
+                                                cy={y}
+                                                r={isHovered ? 6 : 4}
+                                                fill={isHovered ? "#3b82f6" : "#60a5fa"}
+                                                stroke="white"
+                                                strokeWidth="2"
+                                                style={{ cursor: 'pointer' }}
+                                                onMouseEnter={() => setHoveredPoint({ ...d, dataKey: 'secondary' })}
+                                                onMouseLeave={() => setHoveredPoint(null)}
+                                            />
+                                        );
+                                    })}
+
+                                    {/* Primary data points */}
+                                    {primaryData.map((d, i) => {
+                                        const x = scaleX(d.year);
+                                        const y = scaleYPrimary(d[primaryDataKey]);
+                                        const isHovered = hoveredPoint?.year === d.year && hoveredPoint?.dataKey === 'primary';
+                                        
+                                        return (
+                                            <circle
+                                                key={`primary-${i}`}
+                                                cx={x}
+                                                cy={y}
+                                                r={isHovered ? 6 : 4}
+                                                fill={isHovered ? "#1e3a8a" : "#1e40af"}
+                                                stroke="white"
+                                                strokeWidth="2"
+                                                style={{ cursor: 'pointer' }}
+                                                onMouseEnter={() => setHoveredPoint({ ...d, dataKey: 'primary' })}
+                                                onMouseLeave={() => setHoveredPoint(null)}
+                                            />
+                                        );
+                                    })}
+                                </g>
+                            </svg>
+
+                            {hoveredPoint && (
+                                <div 
+                                    className="tooltip"
+                                    style={{ 
+                                        left: mousePos.x + 15,
+                                        top: mousePos.y - 15
+                                    }}
+                                >
+                                    <div className="tooltip-year">{hoveredPoint.year} Draft</div>
+                                    {hoveredPoint.dataKey === 'primary' ? (
+                                        <div>{primaryLabel}: {formatValue(hoveredPoint[primaryDataKey], primaryDataKey)}</div>
+                                    ) : (
+                                        <div>{secondaryLabel}: {formatValue(hoveredPoint[secondaryDataKey], secondaryDataKey)}</div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div>
+                    <div className="header">
+                        <h1>NBA Draft Explorer</h1>
+                        <p className="subtitle">Analyzing draft class success metrics from 1980-2014</p>
+                    </div>
+
+                    <div className="tabs">
+                        <button 
+                            className={`tab ${activeTab === 'summary' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('summary')}
+                        >
+                            Draft Summary
+                        </button>
+                        <button 
+                            className={`tab ${activeTab === 'explorer' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('explorer')}
+                        >
+                            Draft Explorer
+                        </button>
+                    </div>
+
+                    {activeTab === 'summary' ? (
+                        <>
+                            {renderLineChart()}
+
+                            <div className="table-container">
+                        <div className="table-header">
+                            <div className="table-title">Draft Summary by Year</div>
+                        </div>
+                        
+                        <div className="table-wrapper">
+                            <table>
+                            <thead>
+                                <tr>
+                                    <th onClick={() => handleSort('Draft Year')}>
+                                        Draft Year
+                                        {sortColumn === 'Draft Year' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('1st Overall Pick')}>
+                                        1st Overall Pick
+                                        {sortColumn === '1st Overall Pick' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('Rookie of the Year')}>
+                                        Rookie of the Year
+                                        {sortColumn === 'Rookie of the Year' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('All-Star Appearances')}>
+                                        All-Stars
+                                        {sortColumn === 'All-Star Appearances' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('All-NBA Honors')}>
+                                        All-NBA Players
+                                        {sortColumn === 'All-NBA Honors' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('MVPs')}>
+                                        MVPs
+                                        {sortColumn === 'MVPs' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('Total Win Shares')}>
+                                        Total Win Shares
+                                        {sortColumn === 'Total Win Shares' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                    <th onClick={() => handleSort('Win Shares per 48')}>
+                                        Win Shares per 48
+                                        {sortColumn === 'Win Shares per 48' && (
+                                            <span className="sort-indicator">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedData.map((row, i) => (
+                                    <tr key={i}>
+                                        <td className={sortColumn === 'Draft Year' ? 'sorted-column' : ''}>
+                                            {row.year}
+                                        </td>
+                                        <td className={sortColumn === '1st Overall Pick' ? 'sorted-column' : ''}>
+                                            {row.firstPick}
+                                        </td>
+                                        <td className={sortColumn === 'Rookie of the Year' ? 'sorted-column' : ''}>
+                                            {row.rookie}
+                                        </td>
+                                        <td 
+                                            className={`${sortColumn === 'All-Star Appearances' ? 'sorted-column' : ''} ${row.allStarsCount > 0 ? 'hoverable' : ''}`}
+                                            onMouseEnter={(e) => {
+                                                if (row.allStarsCount > 0) {
+                                                    setCellMousePos({ x: e.clientX, y: e.clientY });
+                                                    setHoveredCell({ type: 'allStars', players: row.allStarsPlayers });
+                                                }
+                                            }}
+                                            onMouseMove={(e) => {
+                                                if (row.allStarsCount > 0) {
+                                                    setCellMousePos({ x: e.clientX, y: e.clientY });
+                                                }
+                                            }}
+                                            onMouseLeave={() => setHoveredCell(null)}
+                                        >
+                                            {row.allStarsCount > 0 ? (
+                                                <span className="icon-container">
+                                                    {Array.from({ length: row.allStarsCount }).map((_, idx) => (
+                                                        <span key={idx} className="icon-star">⭐</span>
+                                                    ))}
+                                                </span>
+                                            ) : '-'}
+                                        </td>
+                                        <td 
+                                            className={`${sortColumn === 'All-NBA Honors' ? 'sorted-column' : ''} ${row.allNBACount > 0 ? 'hoverable' : ''}`}
+                                            onMouseEnter={(e) => {
+                                                if (row.allNBACount > 0) {
+                                                    setCellMousePos({ x: e.clientX, y: e.clientY });
+                                                    setHoveredCell({ type: 'allNBA', players: row.allNBAPlayers });
+                                                }
+                                            }}
+                                            onMouseMove={(e) => {
+                                                if (row.allNBACount > 0) {
+                                                    setCellMousePos({ x: e.clientX, y: e.clientY });
+                                                }
+                                            }}
+                                            onMouseLeave={() => setHoveredCell(null)}
+                                        >
+                                            {row.allNBACount > 0 ? (
+                                                <span className="icon-container">
+                                                    {Array.from({ length: row.allNBACount }).map((_, idx) => (
+                                                        <span key={idx} className="icon-medal">🏅</span>
+                                                    ))}
+                                                </span>
+                                            ) : '-'}
+                                        </td>
+                                        <td 
+                                            className={`${sortColumn === 'MVPs' ? 'sorted-column' : ''} ${row.mvpsCount > 0 ? 'hoverable' : ''}`}
+                                            onMouseEnter={(e) => {
+                                                if (row.mvpsCount > 0) {
+                                                    setCellMousePos({ x: e.clientX, y: e.clientY });
+                                                    setHoveredCell({ type: 'mvps', players: row.mvpsPlayers });
+                                                }
+                                            }}
+                                            onMouseMove={(e) => {
+                                                if (row.mvpsCount > 0) {
+                                                    setCellMousePos({ x: e.clientX, y: e.clientY });
+                                                }
+                                            }}
+                                            onMouseLeave={() => setHoveredCell(null)}
+                                        >
+                                            {row.mvpsCount > 0 ? (
+                                                <span className="icon-container">
+                                                    {Array.from({ length: row.mvpsCount }).map((_, idx) => (
+                                                        <span key={idx} className="icon-trophy">🏆</span>
+                                                    ))}
+                                                </span>
+                                            ) : '-'}
+                                        </td>
+                                        <td className={sortColumn === 'Total Win Shares' ? 'sorted-column' : ''}>
+                                            {row.totalWS ? row.totalWS.toLocaleString() : '-'}
+                                        </td>
+                                        <td 
+                                            className={sortColumn === 'Win Shares per 48' ? 'sorted-column' : ''}
+                                            style={{ backgroundColor: row.wsper48 ? getWsPerColor(row.wsper48) : 'transparent' }}
+                                        >
+                                            {row.wsper48 ? row.wsper48.toFixed(3) : '-'}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        
+                        {hoveredCell && (
+                            <div 
+                                className="tooltip"
+                                style={{ 
+                                    left: cellMousePos.x + 15,
+                                    top: cellMousePos.y - 15
+                                }}
+                            >
+                                <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                                    {hoveredCell.type === 'allStars' ? 'All-Star Appearances' : 
+                                     hoveredCell.type === 'allNBA' ? 'All-NBA Honors' : 'MVPs'}
+                                </div>
+                                {hoveredCell.players.map((player, idx) => (
+                                    <div key={idx}>
+                                        {player.name} ({player.count})
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        </div>
+                    </div>
+                        </>
+                    ) : (
+                        renderDraftExplorer()
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<DraftExplorer />, document.getElementById('root'));
+    </script>
+</body>
+</html>
